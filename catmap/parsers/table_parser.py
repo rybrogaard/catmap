@@ -1,4 +1,5 @@
 import numpy as np
+
 import catmap
 from parser_base import *
 string2symbols = catmap.string2symbols
@@ -92,6 +93,7 @@ class TableParser(ParserBase):
 #                    raise ValueError('Error parsing '+p+'. Ensure that the header is properly defined')
             else:
                 raise AttributeError('No parsing function defined for '+p)
+
 
     def parse_formation_energy(self,**kwargs):
         "Parse in basic info for reaction model"

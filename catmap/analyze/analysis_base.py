@@ -195,8 +195,8 @@ class MapPlot:
             else:
                 levels = np.linspace(min_val,max_val,min(eff_res,25))
 
-            plot_in = [np.linspace(*x_range+[eff_res]),
-                    np.linspace(*y_range+[eff_res]),z,levels]
+            plot_in = [np.linspace(*x_range+[eff_res[0]]),
+                    np.linspace(*y_range+[eff_res[1]]),z,levels]
 
         plot = getattr(ax,self.plot_function)(*plot_in,**plot_args)
         pos = ax.get_position()
@@ -467,16 +467,10 @@ class MechanismPlot:
             xf = energy_lines[i+1][0][0]
             yi = energy_lines[i][1][0]
             yf = energy_lines[i+1][1][0]
-            if self.energy_mode == 'relative' and (barrier == 0 or barrier <= yf-yi):
-                line = [[xi,xf],[yi,yf]]
-            elif self.energy_mode == 'absolute' and (barrier <= yf or barrier <= yi):
+            if barrier == 0 or barrier <= yf-yi:
                 line = [[xi,xf],[yi,yf]]
             else:
-                if self.energy_mode == 'relative':
-                    yts = yi+barrier
-                elif self.energy_mode == 'absolute':
-                    yts = barrier
-                    barrier = yts - yi
+                yts = yi+barrier
                 barrier_rev = barrier + (yi-yf)
                 ratio = np.sqrt(barrier)/(np.sqrt(barrier)+np.sqrt(barrier_rev))
                 xts = xi + ratio*(xf-xi)

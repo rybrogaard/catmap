@@ -27,15 +27,6 @@ class GeneralizedLinearScaler(ScalerBase):
                           'avoid_scaling':None}
 
     def parameterize(self):
-
-        #Check that descriptors are in reaction network
-        all_ads = list(self.adsorbate_names) + list(self.transition_state_names)
-        for d in self.descriptor_names: #REMOVE THIS REQUIREMENT LATER
-            if d not in all_ads:
-                raise AttributeError('Descriptor '+d+' does not appear in reaction'+\
-                        ' network. Add descriptor to network via "dummy" site, or '+\
-                        'use an adsorbate from the network as a descriptor.')
-
         if not self.parameter_dict or not self.descriptor_dict:
             parameter_dict = {}
             descriptor_dict = {}
@@ -188,6 +179,7 @@ class GeneralizedLinearScaler(ScalerBase):
                     for I,F,T in zip(IS_totals,FS_totals,TS_energies):
                         if None not in [I,F,T]:
                             valid_xy.append([F-I,T])
+
                 x,y = zip(*valid_xy)
                 if params and len(params) == 1:
                     m,b = catmap.functions.linear_regression(x,y,params[0])
@@ -318,7 +310,7 @@ class GeneralizedLinearScaler(ScalerBase):
 
 
     def get_rxn_parameters(self,descriptors, *args, **kwargs):
-        if self.adsorbate_interaction_model in ['first_order','second_order']:
+        if self.adsorbate_interaction_model in ['first_order']:
             params =  self.get_formation_energy_interaction_parameters(descriptors)
             return params
         else:

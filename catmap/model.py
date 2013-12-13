@@ -108,6 +108,9 @@ class ReactionModel:
             self.load(self.setup_file)
         
 
+        if not hasattr(self,'verbose'):
+            self.verbose = 1
+
     # Functions for executing the kinetic model
 
     def run(self,**kwargs):
@@ -165,16 +168,10 @@ class ReactionModel:
                 int_function = getattr(interaction_model,
                         response_func+'_response')
                 interaction_model.interaction_response_function = int_function
+            
             self.thermodynamics.__dict__['adsorbate_interactions'] = interaction_model
+#            self.thermodynamics.adsorbate_interactions = interaction_model
 
-        elif self.adsorbate_interaction_model == 'second_order':
-            interaction_model = catmap.thermodynamics.SecondOrderInteractions(self)
-            response_func = interaction_model.interaction_response_function
-            if not callable(response_func):
-                int_function = getattr(interaction_model,
-                        response_func+'_response')
-                interaction_model.interaction_response_function = int_function
-            self.thermodynamics.__dict__['adsorbate_interactions'] = interaction_model
 
         elif self.adsorbate_interaction_model in ['ideal',None]:
             self.thermodynamics.adsorbate_interactions = None
@@ -296,7 +293,6 @@ class ReactionModel:
                 adsorbate_interaction_model = 'ideal',
                 interaction_fitting_mode=None,
                 decimal_precision = 75,
-                verbose = 1,
                 data_file = 'data.pkl')
         globs = {}
         locs = defaults
@@ -465,9 +461,8 @@ class ReactionModel:
 
     def texify(self,ads): #
         sub_nums = [str(n) for n in range(2,15)]
-        ads_def = ads
         ads = ads.replace('-','\mathrm{-}')
-        if self.species_definitions[ads_def]['type'] == 'site':
+        if ads in self.site_totals.keys():
             return '*_'+ads
         elif '_' in ads:
             adsN,site = ads.split('_')
@@ -562,9 +557,8 @@ class ReactionModel:
 
         max_freqs = 3 
         #This could be cleaned up a lot using templates...
-        for spec in self.gas_names:
-            energy = self.species_definitions[spec]['formation_energy']
-            freqs = [str(round(v*1e3,1)) for v in self.species_definitions[spec].get('frequencies',[])]
+        for spec,energy in zip(self.gas_names,self.gas_energies):
+            freqs = [str(round(v*1e3,1)) for v in self.frequency_dict[spec]]
             frequencies = '\parbox[t]{3cm}{'
             while freqs:
                 freq_subset = [freqs.pop(0) for i in range(0,max_freqs) if freqs]
@@ -576,7 +570,8 @@ class ReactionModel:
             facet = 'gas'
             surf = 'None'
             ref_tag = '_'.join([surf,facet,ads])
-            reference = '\parbox[t]{4cm}{'+self.species_definitions[spec]['formation_energy_source']+'}'
+            reference = '\parbox[t]{4cm}{'+r';\\'.join(
+                    [cleanstring(ref) for ref in [self.reference_dict[ref_tag]]])+'}'
             spec_tex = '$'+self.texify(spec)+'$'
             tabrow = '&'.join(
                     [spec_tex,'gas',str(
@@ -588,9 +583,9 @@ class ReactionModel:
             for e,surf in zip(energy,self.surface_names):
                 if e != '-':
                     e = str(round(e,2))
-                    if self.species_definitions[spec].get('frequencies',[]):
+                    if surf in self.frequency_surfaces and spec in self.frequency_dict:
                         freqs = [str(round(v*1e3,1)) 
-                                for v in self.species_definitions[spec].get('frequencies',[])]
+                                for v in self.frequency_dict[spec]]
                         frequencies = '\parbox[t]{3cm}{'
                         while freqs:
                             freq_subset = [freqs.pop(0) 
@@ -604,29 +599,33 @@ class ReactionModel:
                     else:
                         ads = spec
                         site = 's'
-                    facet = self.species_definitions[site]['site_names']
+                    facet = self.site_definitions[site]
                     if str(facet) != facet:
-                        facet = ' or '.join(facet)
+                        for fc in facet:
+                            ref_tag = '_'.join([surf,fc,ads])
+                            if ref_tag in self.reference_dict:
+                                use_facet = fc
+                        facet = use_facet
                     ref_tag = '_'.join([surf,facet,ads])
-#                    if ref_tag in self.reference_dict:
-#                        reference = '\parbox[t]{4cm}{'+ \
-#                               r';\\'.join(
-#                               [ref.replace('\r','').replace('"','').replace("'",'')
-#                               for ref in [self.reference_dict[ref_tag]]])+'}'
-#                        spec_tex = '$'+self.texify(spec)+'$'
-#                        tabrow = '& '.join(
-#                                [spec_tex,surf,e,frequencies,reference]) + r'\\'
-#                        longtable_txt += tabrow + '\n'
+                    if ref_tag in self.reference_dict:
+                        reference = '\parbox[t]{4cm}{'+ \
+                               r';\\'.join(
+                               [ref.replace('\r','').replace('"','').replace("'",'')
+                               for ref in [self.reference_dict[ref_tag]]])+'}'
+                        spec_tex = '$'+self.texify(spec)+'$'
+                        tabrow = '& '.join(
+                                [spec_tex,surf,e,frequencies,reference]) + r'\\'
+                        longtable_txt += tabrow + '\n'
 
         subs_dict['longtable_txt'] = longtable_txt
 
-        longtable = Template(longtable_template).substitute(subs_dict)
+        longtable = longtable_template.substitute(subs_dict)
 
         out_txt += longtable
 
         subs_dict['summary_txt'] = out_txt
 
-        summary = Template(latex_template).substitute(subs_dict)
+        summary = latex_template.substitute(subs_dict)
 
         f = open(self.summary_file,'w')
         f.write(summary)
@@ -659,7 +658,6 @@ class ReactionModel:
                         'attribute '+str(var))
 
     def verify(self):
-
         
         #Check gas_ratios
         if hasattr(self,'gas_ratios') and self.gas_ratios:
@@ -802,11 +800,11 @@ class ReactionModel:
 
         elif len(pts[0]) == 2:
             xData,yData = zip(*pts)
-            maparray = np.zeros((resolution,resolution,len(datas[0])))
+            maparray = np.zeros((resolution[1],resolution[0],len(datas[0])))
             datas = zip(*datas)
             x_range,y_range = desc_rngs
-            xi = np.linspace(*x_range+[resolution])
-            yi = np.linspace(*y_range+[resolution])
+            xi = np.linspace(*x_range+[resolution[0]])
+            yi = np.linspace(*y_range+[resolution[1]])
             for i,Zdata in enumerate(datas):
                 if minval:
                     Zdata = np.array([max(zn,minval) for zn in Zdata])
