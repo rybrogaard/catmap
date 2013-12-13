@@ -42,7 +42,7 @@ def convert_formation_energies(energy_dict,atomic_references,composition_dict):
         for symb in composition:
             E -= ref_offsets[symb]*composition[symb]
         new_data[key] = round(E,5)
-    return new_data
+    return new_data,ref_offsets
 
 def parse_constraint(minmaxlist,name):
     minlist = []
@@ -71,7 +71,7 @@ def parse_constraint(minmaxlist,name):
     return minlist,maxlist
 
 def constrained_relaxation(
-        A,b,x0,x_min,x_max,max_iter = 10000,tolerance = 1e-12):
+        A,b,x0,x_min,x_max,max_iter = 100000,tolerance = 1e-10):
     """Solve Ax=b subject to the constraints that 
     x_i > x_min_i and x_i < x_max_i. Algorithm is from Axelson 1996.
     
@@ -238,7 +238,6 @@ def scaling_coefficient_matrix(
         #for such small matrices)
         D = np.array(D)
         A = np.array(A)
-
         Dinv = np.linalg.pinv(D)
         c0 = np.dot(Dinv,A)
 
@@ -315,11 +314,15 @@ def smooth_piecewise_linear(theta_tot,max_coverage=1,cutoff=0.25,smoothing=0.05)
     if theta_tot <= x0:
         c_0 = 0
         dC = 0
+        d2C = 0
     elif theta_tot <= x1:
         alpha = slope/(2*(x1-x0))
         c_0 = (alpha*(theta_tot-x0)**2)/theta_tot
-        dC = alpha*(1-(x0**2/theta_tot**2))
+        dC = alpha*(1-(x0/theta_tot)**2)
+        d2C = (2*alpha*x0**2)/(theta_tot**3)
+
     else:
         c_0 = slope*(theta_tot - cutoff)/theta_tot
         dC = slope*(cutoff/(theta_tot**2))
-    return c_0, dC
+        d2C = (-2*slope*cutoff)/(theta_tot**3)
+    return c_0, dC, d2C
